@@ -1,0 +1,103 @@
+# yamllint disable rule:line-length
+
+name: Test
+
+# yamllint disable rule:truthy
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - '*'
+  pull_request:
+    branches:
+      - '*'
+# yamllint enable rule:truthy
+
+jobs:
+  lint:
+    name: Lint
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout
+
+      - uses: actions/setup-node
+        with:
+          node-version: '16'
+
+      - name: Install lintball
+        run: |
+          npm install
+          npx lintball install-tools --yes
+
+      - name: Check for linter issues
+        run: npx lintball check
+
+  test:
+    name: Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python-version: '3.9'
+          - os: ubuntu-latest
+            python-version: '3.10'
+          - os: macos-latest
+            python-version: '3.10'
+          - os: windows-latest
+            python-version: '3.10'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout
+
+      - uses: actions/setup-python
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Test (Unix)
+        shell: bash
+        if: ${{ runner.os == 'Linux' || runner.os == 'macOS' }}
+        run: |
+          set -ueo pipefail
+          pip install .
+          pytest
+
+      - name: Test (Windows)
+        shell: powershell
+        if: ${{ runner.os == 'Windows' }}
+        run: |
+          pip install .
+          pytest
+
+  publish-test:
+    name: Publish to test.pypy.org
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' && contains(github.event.ref, '/tags/') }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout
+
+      - uses: actions/setup-python
+        with:
+          python-version: '3.10'
+
+      - name: Build sdist
+        shell: bash
+        run: |
+          set -ueo pipefail
+
+          python setup.py sdist
+
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          verbose: true
+          print-hash: true

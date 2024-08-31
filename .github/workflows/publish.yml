@@ -1,0 +1,40 @@
+# yamllint disable rule:line-length
+
+name: 'Publish to pypi.org'
+
+# yamllint disable rule:truthy
+on:
+  workflow_dispatch:
+    inputs:
+      git-ref:
+        description: 'git ref to publish'
+        required: true
+# yamllint enable rule:truthy
+
+jobs:
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: '${{ github.event.inputs.git-ref }}'
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Build sdist
+        shell: bash
+        run: |
+          set -ueo pipefail
+
+          python setup.py sdist
+
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          verbose: true
+          print-hash: true

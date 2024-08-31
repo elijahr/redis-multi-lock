@@ -1,0 +1,79 @@
+[project]
+name = "redis-multi-lock"
+authors = [
+    { name = "Elijah Shaw-Rutschman", email = "elijahr+redis-multi-lock@gmail.com" },
+]
+maintainers = [
+    { name = "Elijah Shaw-Rutschman", email = "elijahr+redis-multi-lock@gmail.com" },
+]
+urls = { GitHub = "https://github.com/redis-multi-lock", PyPI = "https://pypi.org/redis-multi-lock" }
+license = { text = "MIT License" }
+dynamic = ["version"]
+description = "Acquire many redis locks atomically"
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3"
+keywords = ["redis_multi_lock", "redis-multi-lock", "redis", "distributed lock", "multi-lock", "batching"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+]
+dependencies = [
+    "redis",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "mypy"
+]
+
+[tool.setuptools]
+zip-safe = false
+include-package-data = true
+packages = ["redis_multi_lock"]
+package-dir = { "" = "." }
+license-files = ["LICENSE"]
+
+[tool.setuptools.dynamic]
+version = { attr = "redis_multi_lock.__version__" }
+
+[tool.pytest.ini_options]
+testpaths = ["test/*"]
+
+# black-compatible configurations for various Python code formatters.
+# Assembled from https://black.readthedocs.io/en/stable/compatible_configs.html
+
+[tool.black]
+line_length = 120
+target_version = ["py39", "py310", "py311"]
+experimental_string_processing = true
+required_version = "22.10.0"
+
+[tool.autopep8]
+exclude = ".git,__pycache__"
+max-line-length = 120
+ignore = "E203,E501,W6"
+
+[tool.isort]
+profile = "black"
+py_version = "all"
+known_first_party = "redis_multi_lock"
+# line_length is intentionally small, to ensure each imported object gets its
+# own line.
+line_length = 10
+multi_line_output = 3
+include_trailing_comma = true
+
+[tool.pylint.messages_control]
+disable = """missing-module-docstring,
+             missing-class-docstring,
+             too-few-public-methods,
+             missing-function-docstring,
+             import-error,
+             invalid-name,
+             too-many-branches,
+             too-many-arguments,"""
+
+[tool.pylint.format]
+max-line-length = "120"

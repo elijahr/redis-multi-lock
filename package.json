@@ -1,0 +1,13 @@
+{
+  "name": "redis-multi-lock",
+  "version": "0.0.0",
+  "description": "This package exists to specify a dev dependency on lintball",
+  "devDependencies": {
+    "lintball": "1.6.0"
+  },
+  "scripts": {
+    "postinstall": "npx lintball install-tools py && git config --local core.hooksPath .githooks",
+    "lint": "npx lintball fix",
+    "lint-changed": "npx lintball fix --since \"HEAD^1\""
+  }
+}
