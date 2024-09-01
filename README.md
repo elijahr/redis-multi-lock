@@ -1,1 +1,1 @@
-# redis_multi_lock
+# redis-multi-lock

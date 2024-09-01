@@ -1,5 +1,6 @@
 {
   "check_args": {
+    "autoflake": "--check",
     "autopep8": "--global-config './pyproject.toml' --diff",
     "black": "--config './pyproject.toml' --check",
     "isort": "--settings-path './pyproject.toml' --check-only",
@@ -7,6 +8,7 @@
     "yamllint": "-c ./.yamllint.yml"
   },
   "write_args": {
+    "autoflake": "--in-place",
     "autopep8": "--global-config './pyproject.toml' --in-place",
     "black": "--config './pyproject.toml'",
     "isort": "--settings-path './pyproject.toml'",
@@ -14,14 +16,14 @@
     "yamllint": "-c ./.yamllint.yml"
   },
   "use": {
-    "autoflake": false,
+    "autoflake": true,
     "autopep8": true,
     "black": true,
     "docformatter": true,
     "isort": true,
     "prettier": true,
     "prettier-eslint": false,
-    "pylint": false,
+    "pylint": true,
     "rubocop": false,
     "shellcheck": true,
     "shfmt": true,
@@ -35,6 +37,7 @@
     "*/.eggs/*",
     "*/.git/*",
     "*/.hg/*",
+    "*/.mypy_cache/*",
     "*/.next/*",
     "*/.serverless_nextjs/*",
     "*/.tmp/*",

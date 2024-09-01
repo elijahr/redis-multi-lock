@@ -1,23 +1,14 @@
-import functools
-import threading
-from collections import (
-    Counter,
-)
+import datetime
 from contextlib import (
     asynccontextmanager,
-    contextmanager,
 )
 from contextvars import (
-    ContextVar,
     Token,
 )
 from typing import (
     AsyncGenerator,
-    Callable,
-    Generator,
     Iterable,
     List,
-    Literal,
     Optional,
     Set,
     Tuple,
@@ -33,28 +24,31 @@ from redis.typing import (
 
 from redis_multi_lock import (
     _acquisitions,
-    _make_script,
-    process_acquire_responses,
+    _process_response,
+    acquire_lua,
 )
 
-__all__ = ("multi_lock_async",)
+__all__ = ("multi_lock",)
 
 
-async def _try_acquire_async(
+async def _try_acquire(
+    client: redis.asyncio.Redis,
     names: Iterable[str],
-    px: Optional[ExpiryT] = None,
-    client: Optional[redis.asyncio.Redis] = None,
-) -> Tuple[Set[str], Set[str], Token[str]]:
-    if client is None:
-        client = redis.asyncio.Redis()
-    script, names_to_acquire = _make_script(names, px=px, client=client)
-    responses = await script()
-    return process_acquire_responses(names_to_acquire, responses)
+    px: Optional[int] = None,
+) -> Tuple[Set[str], Set[str], Token[Set[str]]]:
+    script = client.register_script(acquire_lua)
+    # Only acquire what is not already acquired
+    names_to_acquire = list(set(names) - _acquisitions.get())
+    args: List[Union[str, int]] = []
+    if px is not None:
+        args += ["px", px]
+    responses = await script(keys=names_to_acquire, args=args)
+    return _process_response(names_to_acquire, responses)
 
 
-async def _release_async(
+async def _release(
     names: Set[str],
-    token: Token[str],
+    token: Token[Set[str]],
     client: redis.asyncio.Redis,
 ) -> None:
     if names:
@@ -63,13 +57,21 @@ async def _release_async(
 
 
 @asynccontextmanager
-async def multi_lock_async(
+async def multi_lock(
     names: Iterable[str],
     px: Optional[ExpiryT] = None,
     client: Optional[redis.asyncio.Redis] = None,
 ) -> AsyncGenerator[Set[str], None]:
-    successes, failures, token = await _try_acquire_async(names, px=px, client=client)
+    if isinstance(px, datetime.timedelta):
+        px = round(px.total_seconds() * 1000)
+    elif isinstance(px, float):
+        px = round(px)
+
+    if client is None:
+        client = redis.asyncio.Redis()
+
+    successes, failures, token = await _try_acquire(client, names, px)
     try:
         yield failures
     finally:
-        await _release_async(successes, token, client)
+        await _release(successes, token, client)

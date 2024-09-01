@@ -11,7 +11,7 @@ license = { text = "MIT License" }
 dynamic = ["version"]
 description = "Acquire many redis locks atomically"
 readme = { file = "README.md", content-type = "text/markdown" }
-requires-python = ">=3"
+requires-python = ">=3.9"
 keywords = ["redis_multi_lock", "redis-multi-lock", "redis", "distributed lock", "multi-lock", "batching"]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -23,9 +23,10 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest",
+    "more-itertools>=5.0.0",
+    "mypy",
     "pytest-asyncio",
-    "mypy"
+    "pytest",
 ]
 
 [tool.setuptools]
@@ -47,7 +48,6 @@ testpaths = ["test/*"]
 [tool.black]
 line_length = 120
 target_version = ["py39", "py310", "py311"]
-experimental_string_processing = true
 required_version = "22.10.0"
 
 [tool.autopep8]
@@ -73,7 +73,19 @@ disable = """missing-module-docstring,
              import-error,
              invalid-name,
              too-many-branches,
-             too-many-arguments,"""
+             too-many-arguments,
+             use-implicit-booleaness-not-comparison,"""
 
 [tool.pylint.format]
 max-line-length = "120"
+
+[tool.autoflake]
+remove-all-unused-imports = true
+remove-duplicate-keys = true
+remove-unused-variables = true
+
+[tool.mypy]
+exclude = [
+    '^\.venv/',  # TOML's double-quoted strings require escaping backslashes
+]
+[tool.pdm]

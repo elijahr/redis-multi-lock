@@ -1,10 +1,6 @@
 __version__ = "0.1.0"
 
-import functools
-import threading
-from collections import (
-    Counter,
-)
+import datetime
 from contextlib import (
     contextmanager,
 )
@@ -13,7 +9,6 @@ from contextvars import (
     Token,
 )
 from typing import (
-    Callable,
     Generator,
     Iterable,
     List,
@@ -39,51 +34,37 @@ __all__ = (
 acquire_lua = """
 local resp = {}
 for i=1, #KEYS do
-    if redis.pcall('SET', KEYS[i], "", "NX", unpack(ARGV) )["err"] == nil then
-        resp[i] = 1
+    local r = redis.pcall('SET', KEYS[i], "", "NX", unpack(ARGV))
+    if r and r["err"] == nil then
+        resp[i] = true
     else
-        resp[i] = 0
+        resp[i] = false
     end
 end
 return resp
 """
 
-
 _acquisitions: ContextVar[Set[str]] = ContextVar("_acquisitions", default=set())
 
 
-def _make_script(
-    names: Iterable[str],
-    client: Union[redis.Redis, redis.asyncio.Redis],
-    px: Optional[ExpiryT] = None,
-) -> Tuple[Callable[[], List[int]], Set[str],]:
-    script = client.register_script(acquire_lua)
-
-    # Only acquire what is not already acquired
-    names_to_acquire = set(names) - _acquisitions.get()
-
-    script = functools.partial(script, keys=tuple(names_to_acquire))
-    if px is not None:
-        script = functools.partial(script, args=("px", px))
-
-    return script, names_to_acquire
-
-
 def _try_acquire(
+    client: redis.Redis,
     names: Iterable[str],
-    px: Optional[ExpiryT] = None,
-    client: Optional[redis.Redis] = None,
-) -> Tuple[Set[str], Set[str], Token[str]]:
-    if client is None:
-        client = redis.Redis()
-    script, names_to_acquire = _make_script(names, px=px, client=client)
-    responses = script()
-    return process_acquire_responses(names_to_acquire, responses)
+    px: Optional[int] = None,
+) -> Tuple[Set[str], Set[str], Token[Set[str]]]:
+    script = client.register_script(acquire_lua)
+    # Only acquire what is not already acquired
+    names_to_acquire = list(set(names) - _acquisitions.get())
+    args: List[Union[str, int]] = []
+    if px is not None:
+        args += ["px", int(px)]
+    responses = script(keys=names_to_acquire, args=args)
+    return _process_response(names_to_acquire, responses)
 
 
 def _release(
     names: Set[str],
-    token: Token[str],
+    token: Token[Set[str]],
     client: redis.Redis,
 ) -> None:
     if names:
@@ -97,22 +78,30 @@ def multi_lock(
     px: Optional[ExpiryT] = None,
     client: Optional[redis.Redis] = None,
 ) -> Generator[Set[str], None, None]:
-    successes, failures, token = _try_acquire(names, px=px, client=client)
+    if isinstance(px, datetime.timedelta):
+        px = round(px.total_seconds() * 1000)
+    elif isinstance(px, float):
+        px = round(px)
+
+    if client is None:
+        client = redis.Redis()
+
+    successes, failures, token = _try_acquire(client, names, px)
     try:
         yield failures
     finally:
         _release(successes, token, client)
 
 
-def process_acquire_responses(
-    names_to_acquire: Set[str],
+def _process_response(
+    names_to_acquire: List[str],
     responses: List[Union[Literal[0], Literal[1]]],
-) -> Tuple[Set[str], Set[str], Token[str]]:
+) -> Tuple[Set[str], Set[str], Token[Set[str]]]:
     failures = set()
     for i, acquired in enumerate(responses):
         if not acquired:
             failures.add(names_to_acquire[i])
-    successes = names_to_acquire - failures
+    successes = set(names_to_acquire) - failures
     # Update acquisitions context
     token = _acquisitions.set(_acquisitions.get() | successes)
     return successes, failures, token
